@@ -65,26 +65,36 @@ macro_rules! bench_function {
 
 #[macro_export]
 macro_rules! test_function {
+
     ($name:tt => $func:path; $($case:ident { args: $args:expr, want: $(Ok($ok:expr))? $(Err($err:expr))?, tdef: $tdef:expr,  $(,)* })+) => {
-        $crate::paste!{$(
-        #[test]
-        fn [<$name _ $case:snake:lower>]() {
-            let (expression, want) = $crate::__prep_bench_or_test!($func, $args, $(Ok($crate::Value::from($ok)))? $(Err($err.to_owned()))?);
-            let mut compiler_state = $crate::state::Compiler::default();
-            let mut runtime_state = $crate::state::Runtime::default();
-            let mut target: $crate::Value = ::std::collections::BTreeMap::default().into();
-            let mut ctx = $crate::Context::new(&mut target, &mut runtime_state);
+        test_function!($name => $func; before_each => {} $($case { args: $args, want: $(Ok($ok))? $(Err($err))?, tdef: $tdef, })+);
+    };
 
-
-            let got_value = expression.resolve(&mut ctx)
-                .map_err(|e| format!("{:#}", anyhow::anyhow!(e)));
-
-            assert_eq!(got_value, want);
-
-            let got_tdef = expression.type_def(&compiler_state);
-
-            assert_eq!(got_tdef, $tdef);
+    ($name:tt => $func:path; before_each => $before:block $($case:ident { args: $args:expr, want: $(Ok($ok:expr))? $(Err($err:expr))?, tdef: $tdef:expr,  $(,)* })+) => {
+        fn before() {
+            $before
         }
+
+        $crate::paste!{$(
+            #[test]
+            fn [<$name _ $case:snake:lower>]() {
+                before();
+                let (expression, want) = $crate::__prep_bench_or_test!($func, $args, $(Ok($crate::Value::from($ok)))? $(Err($err.to_owned()))?);
+                let mut compiler_state = $crate::state::Compiler::default();
+                let mut runtime_state = $crate::state::Runtime::default();
+                let mut target: $crate::Value = ::std::collections::BTreeMap::default().into();
+                let mut ctx = $crate::Context::new(&mut target, &mut runtime_state);
+
+
+                let got_value = expression.resolve(&mut ctx)
+                    .map_err(|e| format!("{:#}", anyhow::anyhow!(e)));
+
+                assert_eq!(got_value, want);
+
+                let got_tdef = expression.type_def(&compiler_state);
+
+                assert_eq!(got_tdef, $tdef);
+            }
         )+}
     };
 }
